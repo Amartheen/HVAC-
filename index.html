@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AC Compressor Predictive Maintenance</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(to bottom right, #e0f2fe, #bfdbfe);
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .error-signal {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4">
+    <div class="max-w-4xl w-full">
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-800 text-center mb-6">AC Compressor Predictive Maintenance</h1>
+
+        <!-- Sensor Data Card -->
+        <div class="card">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Sensor Readings</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <p class="text-gray-600">Acceleration X:</p>
+                    <p class="text-lg font-medium text-gray-800" id="accelX">Loading...</p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Acceleration Y:</p>
+                    <p class="text-lg font-medium text-gray-800" id="accelY">Loading...</p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Acceleration Z:</p>
+                    <p class="text-lg font-medium text-gray-800" id="accelZ">Loading...</p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Temperature:</p>
+                    <p class="text-lg font-medium text-gray-800" id="temp">Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prediction Card -->
+        <div class="card">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Prediction</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <p class="text-gray-600">Compressor State:</p>
+                    <p class="text-lg font-medium text-gray-800" id="class">Loading...</p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Probability:</p>
+                    <p class="text-lg font-medium text-gray-800" id="probability">Loading...</p>
+                </div>
+            </div>
+            <p class="mt-4 text-red-600 font-semibold" id="error_signal"></p>
+        </div>
+
+        <!-- Status Indicator -->
+        <div class="text-center mt-4">
+            <p class="text-gray-500 text-sm">Data updates every 10 seconds</p>
+        </div>
+    </div>
+
+    <script>
+        async function fetchData() {
+            try {
+                // Fetch latest sensor data from Flask /latest_data endpoint
+                const response = await fetch('/latest_data');
+                const data = await response.json();
+                if (data.error) {
+                    console.error('Error fetching data:', data.error);
+                    return;
+                }
+                // Update sensor data on the page
+                document.getElementById('accelX').innerText = data.a1.toFixed(3) + ' g';
+                document.getElementById('accelY').innerText = data.a2.toFixed(3) + ' g';
+                document.getElementById('accelZ').innerText = data.a3.toFixed(3) + ' g';
+                document.getElementById('temp').innerText = data.temp.toFixed(2) + ' °C';
+
+                // Send sensor data to /predict endpoint for prediction
+                const predictResponse = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `a1=${data.a1}&a2=${data.a2}&a3=${data.a3}&temp=${data.temp}`
+                });
+                const predictData = await predictResponse.json();
+                if (predictData.error) {
+                    console.error('Error predicting:', predictData.error);
+                    return;
+                }
+                // Update prediction results on the page
+                document.getElementById('class').innerText = predictData.class;
+                document.getElementById('probability').innerText = (predictData.probability * 100).toFixed(2) + '%';
+                
+                // Update error signal with animation
+                const errorSignal = document.getElementById('error_signal');
+                errorSignal.innerText = predictData.error_signal || '';
+                if (predictData.error_signal) {
+                    errorSignal.classList.add('error-signal');
+                } else {
+                    errorSignal.classList.remove('error-signal');
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+            }
+        }
+        // Update data every 10 seconds
+        setInterval(fetchData, 10000);
+        // Initial fetch on page load
+        fetchData();
+    </script>
+</body>
+</html>
